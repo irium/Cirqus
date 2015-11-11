@@ -41,12 +41,17 @@ namespace d60.Cirqus.Identity
 
         public static void For<T>(string input)
         {
+            For(typeof(T), input);
+        }
+
+        public static void For(Type type, string input)
+        {
             var format = FromString(input);
 
             if (!format.Terms.Any(x => x is LiteralText))
                 throw new ParseException("Format must contain a unique text identifying the type of id.");
 
-            formatByType.Add(typeof(T), format);
+            formatByType.Add(type, format);
         }
 
         public static Type GetTypeById(string id)
