@@ -97,7 +97,7 @@ namespace d60.Cirqus.Views
 
             viewManagers.ToList().ForEach(AddViewManager);
 
-            _worker = new Thread(DoWork) { IsBackground = true };
+            _worker = new Thread(DoWork) { IsBackground = true, Name = "ViewManagerEventDispatcher Thread" };
 
             _automaticCatchUpTimer.Elapsed += delegate
             {
