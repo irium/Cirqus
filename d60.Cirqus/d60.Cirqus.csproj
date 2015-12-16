@@ -166,6 +166,7 @@
     <Compile Include="Snapshotting\ISnapshotCache.cs" />
     <Compile Include="Snapshotting\Sturdylizer.cs" />
     <Compile Include="Views\CompositeEventDispatcher.cs" />
+    <Compile Include="Views\ViewManagers\IViewManagerAdvanced.cs" />
     <Compile Include="Views\ViewManagers\IViewManagerProfiler.cs" />
     <Compile Include="Views\ViewManagers\Locators\HandlerViewLocator.cs" />
     <Compile Include="Views\ViewManagers\IGetViewIdsFor.cs" />
