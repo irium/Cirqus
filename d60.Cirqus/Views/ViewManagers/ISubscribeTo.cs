@@ -15,6 +15,6 @@ namespace d60.Cirqus.Views.ViewManagers
         /// <summary>
         /// Implement this method in order to have domain events dispatched to it
         /// </summary>
-        void Handle(IViewContext context, TDomainEvent domainEvent);
+        void Handle(IViewContext context, TDomainEvent e);
     }
 }
