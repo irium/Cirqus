@@ -214,7 +214,7 @@ namespace d60.Cirqus.Identity
 
         public override int GetHashCode()
         {
-            return pattern.GetHashCode();
+            return pattern.ToString().GetHashCode();
         }
 
         public static string ToSGuid(Guid guid)

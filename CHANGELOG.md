@@ -723,6 +723,23 @@
 * Makes no sense to have reentrant cache trimming in `CachingDomainEventSerializerDecorator`
 * Added view type reflection extension on `IViewManager`
 
+## 0.63.13
+
+* Fixed GetHashCode issue on KeyFormat
+
+## 0.63.14
+
+* Fixed TestingHarness for bug when no event was emitted
+
+## 0.63.15
+
+* Making InMemoryEventStore and InMemoryUnitOfWork testing tools public to ease implementing custom event dispatchers
+
+## 0.63.16
+
+* Fixed `Kind` of `DateTime` retrieved by `MsSqlViewManager` to be UTC because that's what it is. The really short version of the description of this problem is: Use `DateTimeOffset`s instead. They are explicit about the fact that they are just a UTC timestamp.
+
+
 [asgerhallas]: https://github.com/asgerhallas
 [kimbirkelund]: https://github.com/kimbirkelund
 [mhertis]: https://github.com/mhertis
