@@ -71,7 +71,7 @@ namespace d60.Cirqus
         public CommandProcessor Initialize()
         {
             _logger.Info("Initializing event dispatcher");
-            _eventDispatcher.Initialize(_eventStore, Options.PurgeExistingViews);
+            _eventDispatcher.Initialize(Options.PurgeExistingViews);
             return this;
         }
 
@@ -112,7 +112,7 @@ namespace d60.Cirqus
 
                     _eventStore.Save(batchId, eventData);
 
-                    unitOfWork.RaiseCommitted();
+                    unitOfWork.RaiseCommitted(eventsFromThisUnitOfWork);
 
                     emittedDomainEvents.AddRange(eventsFromThisUnitOfWork);
 
@@ -134,7 +134,7 @@ namespace d60.Cirqus
                 _logger.Debug("Delivering {0} events to the dispatcher", emittedDomainEvents.Count);
 
                 // when we come to this place, we deliver the events to the view manager
-                _eventDispatcher.Dispatch(_eventStore, emittedDomainEvents);
+                _eventDispatcher.Dispatch(emittedDomainEvents);
             }
             catch (Exception exception)
             {

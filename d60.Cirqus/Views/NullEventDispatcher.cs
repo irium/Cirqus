@@ -8,11 +8,11 @@ namespace d60.Cirqus.Views
     /// </summary>
     class NullEventDispatcher : IEventDispatcher
     {
-        public void Initialize(IEventStore eventStore, bool purgeExistingViews = false)
+        public void Initialize(bool purgeExistingViews = false)
         {
         }
 
-        public void Dispatch(IEventStore eventStore, IEnumerable<DomainEvent> events)
+        public void Dispatch(IEnumerable<DomainEvent> events)
         {
         }
     }

@@ -16,8 +16,6 @@ namespace d60.Cirqus.Tests.Bugs
     [TestFixture, Description("Verify bug in being able to correctly load active aggregate roots from the current unit of work")]
     public class VerifyThatDuplicateSequenceNumbersAreNotAssigned : FixtureBase
     {
-        readonly JsonDomainEventSerializer _domainEventSerializer = new JsonDomainEventSerializer();
-
         [Test, Category(TestCategories.MongoDb)]
         public void NoProblemoWithRealSetup()
         {
@@ -26,7 +24,8 @@ namespace d60.Cirqus.Tests.Bugs
 
             var commandProcessor = CommandProcessor.With()
                 .EventStore(e => e.Register<IEventStore>(c => eventStore))
-                .EventDispatcher(e => e.Register<IEventDispatcher>(c => new ConsoleOutEventDispatcher()))
+                .EventDispatcher(e => e.Register<IEventDispatcher>(c => 
+                    new ConsoleOutEventDispatcher(eventStore)))
                 .Create();
 
             RegisterForDisposal(commandProcessor);

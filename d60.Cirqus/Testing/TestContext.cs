@@ -52,6 +52,16 @@ namespace d60.Cirqus.Testing
             return With().Create();
         }
 
+        public IDomainEventSerializer EventSerializer
+        {
+            get { return _domainEventSerializer; }
+        }
+
+        public IEventStore EventStore
+        {
+            get { return _eventStore; }
+        }
+
         internal event Action Disposed = delegate { };
         internal bool Asynchronous { get; set; }
 
@@ -139,7 +149,8 @@ namespace d60.Cirqus.Testing
             get
             {
                 return _eventStore
-                    .Select(e => e.GetAggregateRootId()).Distinct()
+                    .Stream()
+                    .Select(e => _domainEventSerializer.Deserialize(e).GetAggregateRootId()).Distinct()
                     .Select(aggregateRootId =>
                     {
                         var firstEvent = _eventStore.Load(aggregateRootId).First();
@@ -227,7 +238,7 @@ namespace d60.Cirqus.Testing
 
             _eventStore.Save(Guid.NewGuid(), eventData);
 
-            _eventDispatcher.Dispatch(_eventStore, domainEvents);
+            _eventDispatcher.Dispatch(domainEvents);
 
             var result = new CommandProcessingResultWithEvents(domainEvents);
 
@@ -271,7 +282,7 @@ namespace d60.Cirqus.Testing
         {
             if (!_initialized)
             {
-                _eventDispatcher.Initialize(_eventStore, purgeExistingViews: true);
+                _eventDispatcher.Initialize(purgeExistingViews: true);
                 _initialized = true;
             }
         }

@@ -138,14 +138,14 @@ namespace d60.Cirqus.Views
             _viewManagers.AddRange(_eventDispatcher.GetViewManagers());
         }
 
-        public void Initialize(IEventStore eventStore, bool purgeExistingViews = false)
+        public void Initialize(bool purgeExistingViews = false)
         {
             if (_eventDispatcher == null)
             {
                 throw new InvalidOperationException("Attempted to initialize AutoDistributionViewManagerEventDispatcher but no ViewManagerEventDispatcherWasRegistered");
             }
 
-            _eventDispatcher.Initialize(eventStore, purgeExistingViews);
+            _eventDispatcher.Initialize(purgeExistingViews);
 
             SignOn();
 
@@ -158,14 +158,14 @@ namespace d60.Cirqus.Views
             EmitHeartbeat(false);
         }
 
-        public void Dispatch(IEventStore eventStore, IEnumerable<DomainEvent> events)
+        public void Dispatch(IEnumerable<DomainEvent> events)
         {
             if (_eventDispatcher == null)
             {
                 throw new InvalidOperationException("Attempted to dispatch to AutoDistributionViewManagerEventDispatcher but no ViewManagerEventDispatcherWasRegistered");
             }
 
-            _eventDispatcher.Dispatch(eventStore, events);
+            _eventDispatcher.Dispatch(events);
         }
 
         public void Dispose()

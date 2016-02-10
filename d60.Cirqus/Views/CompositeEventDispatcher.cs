@@ -24,14 +24,14 @@ namespace d60.Cirqus.Views
             _eventDispatchers = eventDispatchers.ToList();
         }
 
-        public void Initialize(IEventStore eventStore, bool purgeExistingViews = false)
+        public void Initialize(bool purgeExistingViews = false)
         {
-            _eventDispatchers.ForEach(d => d.Initialize(eventStore, purgeExistingViews));
+            _eventDispatchers.ForEach(d => d.Initialize(purgeExistingViews));
         }
 
-        public void Dispatch(IEventStore eventStore, IEnumerable<DomainEvent> events)
+        public void Dispatch(IEnumerable<DomainEvent> events)
         {
-            _eventDispatchers.ForEach(d => d.Dispatch(eventStore, events));
+            _eventDispatchers.ForEach(d => d.Dispatch(events));
         }
 
         public Task WaitUntilProcessed<TViewInstance>(CommandProcessingResult result, TimeSpan timeout) where TViewInstance : IViewInstance

@@ -34,9 +34,9 @@
     <DocumentationFile>bin\Release\d60.Cirqus.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Newtonsoft.Json.6.0.5\lib\net45\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=7.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.7.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
@@ -55,13 +55,21 @@
     <Compile Include="Config\Configurers\ConfigurationBuilder.cs" />
     <Compile Include="Config\Configurers\ViewManagerEventDispatcherConfiguationBuilder.cs" />
     <Compile Include="Events\DisplayAttribute.cs" />
+    <Compile Include="Events\IDomainEvent.cs" />
     <Compile Include="Exceptions\AggregateRootNotFoundException.cs" />
     <Compile Include="Extensions\StringExtensions.cs" />
     <Compile Include="Extensions\TypeExtensions.cs" />
     <Compile Include="Logging\Debug\DebugLogger.cs" />
     <Compile Include="Logging\Debug\DebugLoggerFactory.cs" />
     <Compile Include="Serialization\CachingDomainEventSerializerDecorator.cs" />
-    <Compile Include="Snapshotting\NewSimpleSnapshottingAggregateRootRepositoryDecorator.cs" />
+    <Compile Include="Snapshotting\InMemorySnapshotStore.cs" />
+    <Compile Include="Snapshotting\EnableSnapshotsAttribute.cs" />
+    <Compile Include="Snapshotting\InMemSnapshotConfigEx.cs" />
+    <Compile Include="Snapshotting\New\ISnapshotStore.cs" />
+    <Compile Include="Snapshotting\New\NewSnapshottingAggregateRootRepositoryDecorator.cs" />
+    <Compile Include="Snapshotting\New\Snapshot.cs" />
+    <Compile Include="Snapshotting\New\SnapshottingConfigurationBuilder.cs" />
+    <Compile Include="Snapshotting\New\SnapshottingConfigurationExtensions.cs" />
     <Compile Include="Testing\TestContextConfigurationBuilder.cs" />
     <Compile Include="Config\CustomizableDomainTypeNameMapper.cs" />
     <Compile Include="Config\DefaultDomainTypeNameMapper.cs" />
@@ -191,6 +199,7 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

@@ -8,12 +8,19 @@ namespace d60.Cirqus.Tests.Stubs
 {
     public class ConsoleOutEventDispatcher : IEventDispatcher
     {
-        public void Initialize(IEventStore eventStore, bool purgeExistingViews = false)
+        readonly IEventStore _eventStore;
+
+        public ConsoleOutEventDispatcher(IEventStore eventStore)
         {
-            Console.WriteLine("Ignoring {0} events", eventStore.Stream().Count());
+            _eventStore = eventStore;
         }
 
-        public void Dispatch(IEventStore eventStore, IEnumerable<DomainEvent> events)
+        public void Initialize(bool purgeExistingViews = false)
+        {
+            Console.WriteLine("Ignoring {0} events", _eventStore.Stream().Count());
+        }
+
+        public void Dispatch(IEnumerable<DomainEvent> events)
         {
             foreach (var e in events)
             {

@@ -120,7 +120,7 @@ namespace d60.Cirqus.Views
         public void SetContextItems(IDictionary<string, object> contextItems)
         {
             if (contextItems == null) throw new ArgumentNullException("contextItems");
-            
+
             foreach (var kvp in contextItems)
             {
                 _viewContextItems[kvp.Key] = kvp.Value;
@@ -157,22 +157,20 @@ namespace d60.Cirqus.Views
             }
         }
 
-        public void Initialize(IEventStore eventStore, bool purgeExistingViews = false)
+        public void Initialize(bool purgeExistingViews = false)
         {
-            if (eventStore == null) throw new ArgumentNullException("eventStore");
             _logger.Info("Initializing event dispatcher with view managers: {0}", string.Join(", ", _viewManagers));
 
             _logger.Debug("Initiating immediate full catchup");
-            _work.Enqueue(PieceOfWork.FullCatchUp(purgeExistingViews: purgeExistingViews));
+            _work.Enqueue(PieceOfWork.FullCatchUp(purgeExistingViews));
 
             _logger.Debug("Starting automatic catchup timer with {0} ms interval", _automaticCatchUpTimer.Interval);
             _automaticCatchUpTimer.Start();
             _worker.Start();
         }
 
-        public void Dispatch(IEventStore eventStore, IEnumerable<DomainEvent> events)
+        public void Dispatch(IEnumerable<DomainEvent> events)
         {
-            if (eventStore == null) throw new ArgumentNullException("eventStore");
             if (events == null) throw new ArgumentNullException("events");
             var list = events.ToList();
 
@@ -310,12 +308,12 @@ namespace d60.Cirqus.Views
             // if we've already been there, don't do anything
             if (lowestSequenceNumberSuccessfullyProcessed >= sequenceNumberToCatchUpTo) return;
 
-            // if we can dispatch events directly, we do it now
-            if (events.Any() && lowestSequenceNumberSuccessfullyProcessed >= events.First().GetGlobalSequenceNumber() - 1)
-            {
-                var serializedEvents = events.Select(e => _domainEventSerializer.Serialize(e));
+            // Fast-track events if possible: If we can dispatch events directly, we do it now
+            var nextSequenceNumberInLineForFastTrackDispatch = lowestSequenceNumberSuccessfullyProcessed + 1;
 
-                DispatchBatchToViewManagers(viewManagers, serializedEvents, positions);
+            if (events.Any() && nextSequenceNumberInLineForFastTrackDispatch == events.First().GetGlobalSequenceNumber())
+            {
+                DispatchBatchToViewManagers(viewManagers, events, positions);
 
                 lowestSequenceNumberSuccessfullyProcessed = events.Last().GetGlobalSequenceNumber();
 
@@ -323,7 +321,7 @@ namespace d60.Cirqus.Views
                 if (lowestSequenceNumberSuccessfullyProcessed >= sequenceNumberToCatchUpTo) return;
             }
 
-            // ok, we must replay - start from here:
+            // Regular dispatch: We must replay - start from here:
             var sequenceNumberToReplayFrom = lowestSequenceNumberSuccessfullyProcessed + 1;
 
             foreach (var batch in eventStore.Stream(sequenceNumberToReplayFrom).Batch(MaxDomainEventsPerBatch))
@@ -346,21 +344,22 @@ namespace d60.Cirqus.Views
 
         void DispatchBatchToViewManagers(IEnumerable<IViewManager> viewManagers, IEnumerable<EventData> batch, Dictionary<IViewManager, Pos> positions)
         {
-            var context = new DefaultViewContext(_aggregateRootRepository, _domainTypeNameMapper);
-            
-            foreach (var kvp in _viewContextItems)
-            {
-                context.Items[kvp.Key] = kvp.Value;
-            }
-            
             var eventList = batch
                 .Select(e => _domainEventSerializer.Deserialize(e))
                 .ToList();
 
+            DispatchBatchToViewManagers(viewManagers, eventList, positions);
+        }
+
+        void DispatchBatchToViewManagers(IEnumerable<IViewManager> viewManagers, List<DomainEvent> eventList, Dictionary<IViewManager, Pos> positions)
+        {
             foreach (var viewManager in viewManagers)
             {
                 var thisParticularPosition = positions[viewManager].Position;
                 if (thisParticularPosition >= eventList.Max(e => e.GetGlobalSequenceNumber())) continue;
+
+                var context = new DefaultViewContext(_aggregateRootRepository, _domainTypeNameMapper, eventList);
+                _viewContextItems.InsertInto(context.Items);
 
                 _logger.Debug("Dispatching batch of {0} events to {1}", eventList.Count, viewManager);
 

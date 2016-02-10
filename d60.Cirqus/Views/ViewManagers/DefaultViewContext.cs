@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using d60.Cirqus.Aggregates;
 using d60.Cirqus.Commands;
 using d60.Cirqus.Config;
 using d60.Cirqus.Events;
 using d60.Cirqus.Extensions;
+using d60.Cirqus.Logging;
 
 namespace d60.Cirqus.Views.ViewManagers
 {
@@ -13,20 +15,37 @@ namespace d60.Cirqus.Views.ViewManagers
     /// </summary>
     public class DefaultViewContext : IViewContext, IUnitOfWork
     {
+        static Logger _logger;
+
+        static DefaultViewContext()
+        {
+            CirqusLoggerFactory.Changed += f => _logger = f.GetCurrentClassLogger();
+        }
+
         readonly IAggregateRootRepository _aggregateRootRepository;
+        readonly List<DomainEvent> _eventBatch;
         readonly RealUnitOfWork _realUnitOfWork;
 
-        public DefaultViewContext(IAggregateRootRepository aggregateRootRepository, IDomainTypeNameMapper domainTypeNameMapper)
+        /// <summary>
+        /// Creates the view context with the given repository and type name mapper, storing the given event batch to be able to look up events in case it could make sense
+        /// </summary>
+        public DefaultViewContext(IAggregateRootRepository aggregateRootRepository, IDomainTypeNameMapper domainTypeNameMapper, IEnumerable<DomainEvent> eventBatch)
         {
             Items = new Dictionary<string, object>();
-
             _aggregateRootRepository = aggregateRootRepository;
-
+            _eventBatch = eventBatch.OrderBy(e => e.GetGlobalSequenceNumber()).ToList();
             _realUnitOfWork = new RealUnitOfWork(_aggregateRootRepository, domainTypeNameMapper);
         }
 
         public bool Exists(string aggregateRootId, long globalSequenceNumberCutoff)
         {
+            var cachedInstance = GetFromCacheOrNull<AggregateRoot>(aggregateRootId, globalSequenceNumberCutoff);
+
+            if (cachedInstance != null)
+            {
+                return true;
+            }
+
             return _realUnitOfWork.Exists(aggregateRootId, globalSequenceNumberCutoff);
         }
 
@@ -35,19 +54,119 @@ namespace d60.Cirqus.Views.ViewManagers
             return _realUnitOfWork.Get<TAggregateRoot>(aggregateRootId, globalSequenceNumberCutoff, createIfNotExists);
         }
 
-        public event Action Committed;
+        public event Action<IEnumerable<DomainEvent>> Committed;
+
+        readonly Dictionary<string, CachedRoot> _cachedRoots = new Dictionary<string, CachedRoot>();
 
         public TAggregateRoot Load<TAggregateRoot>(string aggregateRootId, long globalSequenceNumber) where TAggregateRoot : class
+        {
+            var rootFromCache = GetFromCacheOrNull<TAggregateRoot>(aggregateRootId, globalSequenceNumber);
+
+            if (rootFromCache != null)
+            {
+                return rootFromCache;
+            }
+
+            var aggregateRoot = LoadAggregateRoot<TAggregateRoot>(aggregateRootId, globalSequenceNumber);
+
+            _cachedRoots[aggregateRootId] = new CachedRoot(aggregateRoot, globalSequenceNumber);
+
+            return aggregateRoot as TAggregateRoot;
+        }
+
+        AggregateRoot LoadAggregateRoot<TAggregateRoot>(string aggregateRootId, long globalSequenceNumber)
+            where TAggregateRoot : class
         {
             var aggregateRootInfo = _aggregateRootRepository
                 .Get<TAggregateRoot>(aggregateRootId, this, maxGlobalSequenceNumber: globalSequenceNumber);
 
-            var aggregateRoot = aggregateRootInfo;
-
             var frozen = new FrozenAggregateRootService(aggregateRootInfo, _realUnitOfWork);
-            aggregateRoot.UnitOfWork = frozen;
+            aggregateRootInfo.UnitOfWork = frozen;
+            return aggregateRootInfo;
+        }
 
-            return aggregateRoot as TAggregateRoot;
+        TAggregateRoot GetFromCacheOrNull<TAggregateRoot>(string aggregateRootId, long globalSequenceNumber) where TAggregateRoot : class
+        {
+            CachedRoot entry;
+
+            if (!_cachedRoots.TryGetValue(aggregateRootId, out entry)) return null;
+
+            foreach (var e in _eventBatch)
+            {
+                entry.MaybeApply(e, _realUnitOfWork, globalSequenceNumber);
+            }
+
+            if (entry.IsOk)
+            {
+                return (TAggregateRoot)entry.AggregateRoot;
+            }
+
+            return null;
+        }
+
+        class CachedRoot
+        {
+            readonly AggregateRootInfo _aggregateRootInfo;
+            long _globalSequenceNumber;
+
+            public CachedRoot(object aggregateRoot, long globalSequenceNumber)
+            {
+                AggregateRoot = aggregateRoot;
+                IsOk = true;
+                _globalSequenceNumber = globalSequenceNumber;
+                _aggregateRootInfo = new AggregateRootInfo(aggregateRoot as AggregateRoot);
+            }
+
+            public object AggregateRoot { get; private set; }
+
+            public bool IsOk { get; private set; }
+
+            public void MaybeApply(DomainEvent domainEvent, RealUnitOfWork realUnitOfWork, long globalSequenceNumber)
+            {
+                var globalSequenceNumberFromEvent = domainEvent.GetGlobalSequenceNumber();
+
+                // don't do anything if we are not supposed to go this far
+                if (globalSequenceNumberFromEvent > globalSequenceNumber) return;
+
+                // don't do anything if the event is in the past
+                if (globalSequenceNumberFromEvent <= _globalSequenceNumber) return;
+
+                // if this entry is a future version of the requested version, it's not ok.... sorry!
+                if (_globalSequenceNumber > globalSequenceNumber)
+                {
+                    IsOk = false;
+                    return;
+                }
+
+                // only apply event if it's ours...
+                if (domainEvent.GetAggregateRootId() != _aggregateRootInfo.Id)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var sequenceNumberFromEvent = domainEvent.GetSequenceNumber();
+                    var expectedNextSequenceNumber = _aggregateRootInfo.SequenceNumber + 1;
+
+                    if (expectedNextSequenceNumber != sequenceNumberFromEvent)
+                    {
+                        IsOk = false;
+                        return;
+                    }
+
+                    _aggregateRootInfo.Apply(domainEvent, realUnitOfWork);
+
+                    _globalSequenceNumber = globalSequenceNumberFromEvent;
+                }
+                catch (Exception exception)
+                {
+                    _logger.Warn(exception, "Got an error while bringing cache entry for {0} up-to-date to {1}",
+                        _aggregateRootInfo.Id, globalSequenceNumber);
+
+                    IsOk = false;
+                }
+            }
         }
 
         public TAggregateRoot Load<TAggregateRoot>(string aggregateRootId) where TAggregateRoot : class
@@ -120,11 +239,11 @@ namespace d60.Cirqus.Views.ViewManagers
                 return _realUnitOfWork.Get<TAggregateRoot>(aggregateRootId, globalSequenceNumberCutoff, createIfNotExists: false);
             }
 
-            public event Action Committed;
+            public event Action<IEnumerable<DomainEvent>> Committed;
         }
 
         public DomainEvent CurrentEvent { get; set; }
-        
+
         public Dictionary<string, object> Items { get; private set; }
 
         public void DeleteThisViewInstance()

@@ -174,13 +174,6 @@ namespace d60.Cirqus.Views
 
         void DispatchBatchToViewManagers(IEnumerable<IViewManager> viewManagers, IEnumerable<EventData> batch, Dictionary<IViewManager, Pos> positions)
         {
-            var context = new DefaultViewContext(_aggregateRootRepository, _domainTypeNameMapper);
-
-            foreach (var kvp in _viewContextItems)
-            {
-                context.Items[kvp.Key] = kvp.Value;
-            }
-
             var eventList = batch
                 .Select(e => _domainEventSerializer.Deserialize(e))
                 .ToList();
@@ -189,6 +182,9 @@ namespace d60.Cirqus.Views
             {
                 var thisParticularPosition = positions[viewManager].Position;
                 if (thisParticularPosition >= eventList.Max(e => e.GetGlobalSequenceNumber())) continue;
+
+                var context = new DefaultViewContext(_aggregateRootRepository, _domainTypeNameMapper, eventList);
+                _viewContextItems.InsertInto(context.Items);
 
                 _logger.Debug("Dispatching batch of {0} events to {1}", eventList.Count, viewManager);
 
@@ -209,7 +205,7 @@ namespace d60.Cirqus.Views
             return sequenceNumberToCatchUpTo;
         }
 
-        public void Initialize(IEventStore eventStore, bool purgeExistingViews = false)
+        public void Initialize(bool purgeExistingViews = false)
         {
             _work.Enqueue(new Work());
             _workerThread.Start();
@@ -218,7 +214,7 @@ namespace d60.Cirqus.Views
 
         class Work { }
 
-        public void Dispatch(IEventStore eventStore, IEnumerable<DomainEvent> events)
+        public void Dispatch(IEnumerable<DomainEvent> events)
         {
             _work.Enqueue(new Work());
         }

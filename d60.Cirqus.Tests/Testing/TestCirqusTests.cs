@@ -29,12 +29,12 @@ namespace d60.Cirqus.Tests.Testing
         [Test]
         public void FormatsGiven()
         {
-            Emit(NewId<RootA>(), new EventA1());
+            Emit(NewId<RootA>(), new EventA3 { Content = "megaoksen" });
 
             Assert.AreEqual(string.Format(
 @"Given that:
-  EventA1
-    Id: {0}
+  EventA3 ({0})
+    Content: megaoksen
 
 ", Id<RootA>()), writer.Buffer);
         }
@@ -50,16 +50,14 @@ namespace d60.Cirqus.Tests.Testing
 
             Assert.AreEqual(string.Format(
 @"Given that:
-  EventA1
-    Id: {0}
+  EventA1 ({0})
 
 When users:
   CommandResultingInOneEvent
     Id: {0}
 
 Then:
-  √ EventA2
-      Id: {0}
+  √ EventA2 ({0})
 
 ", Id<RootA>()), writer.Buffer);
         }
@@ -75,10 +73,30 @@ Then:
         }
 
         [Test]
+        public void GivenWhenThenDiff()
+        {
+            Emit(NewId<RootA>(), new EventA1());
+
+            When(new CommandResultingInA3 { Id = Id<RootA>() });
+
+            Should.Throw<AssertionException>(() =>
+                Then(NewId<RootA>(), new EventA3
+                {
+                    Content = "asger"
+                }));
+
+            writer.Buffer.Trim().ShouldContain(
+@"
+-   ""Content"": null
++   ""Content"": ""asger""
+");
+        }
+
+        [Test]
         public void GivenWithImplicitId()
         {
             Emit(NewId<RootA>(), new EventA1());
-            Emit<RootA>(new EventA2());
+            Emit(Id<RootA>(), new EventA2());
 
             var history = Context.History.ToList();
             Assert.AreEqual(Id<RootA>().ToString(), history[0].GetAggregateRootId());
@@ -150,8 +168,8 @@ Then:
         {
             Emit(NewId<RootAExtended>(), new EventA1());
             
-            Assert.Throws<InvalidOperationException>(() => Emit<RootA>(new EventA2()))
-                .Message.ShouldBe("Can not get latest RootA id, since none exists.");
+            Assert.Throws<IndexOutOfRangeException>(() => Id<RootA>())
+                .Message.ShouldBe("Could not find Id<RootA> with index 1");
         }
 
         [Test]
@@ -179,7 +197,7 @@ Then:
         public void EmitWithHook()
         {
             var flag = false;
-            OnEvent += x => flag = true;
+            BeforeEmit += x => flag = true;
 
             var id = Guid.NewGuid().ToString();
             Emit<RootA>(id, new EventA1());
@@ -191,7 +209,7 @@ Then:
         public void WhenWithHook()
         {
             var flag = false;
-            OnCommand += x => flag = true;
+            BeforeExecute += x => flag = true;
 
             var id = Guid.NewGuid().ToString();
             Emit<RootA>(id, new EventA1());
@@ -276,7 +294,110 @@ Then:
                 .Message.ShouldBe("hej");
         }
 
-        public class RootA : AggregateRoot, IEmit<EventA1>, IEmit<EventA2>
+        [Test]
+        public void EmitToAnyStream()
+        {
+            KeyFormat.For<object>("stream-*");
+
+            Emit<object>("stream-id", new EventWithNoRoot());
+
+            var @event = Context.History.Single();
+            @event.ShouldBeOfType<EventWithNoRoot>();
+            @event.Meta[DomainEvent.MetadataKeys.AggregateRootId].ShouldBe("stream-id");
+            @event.Meta[DomainEvent.MetadataKeys.Owner].ShouldBe("System.Object, mscorlib");
+        }
+
+        [Test]
+        public void MultipleIdsOfSameType()
+        {
+            var id1 = NewId<RootA>();
+            var id2 = NewId<RootA>();
+            var id3 = NewId<RootA>();
+
+            Id<RootA>(1).ShouldBe(id1);
+            Id<RootA>(2).ShouldBe(id2);
+            Id<RootA>(3).ShouldBe(id3);
+        }
+
+        [Test]
+        public void ThenWhenWithCorrectType()
+        {
+            var id = Guid.NewGuid().ToString();
+
+            Emit<RootA>(id, new EventA1());
+
+            When(new CommandResultingInOneEvent { Id = id });
+
+            Then(id, new EventA2());
+        }
+
+        [Test]
+        public void ThenWhenWithTypeMismatch()
+        {
+            var id = Guid.NewGuid().ToString();
+
+            Emit<RootA>(id, new EventA1());
+
+            When(new CommandResultingInOneEvent { Id = id });
+
+            Should.Throw<AssertionException>(() => Then(id, new EventA3()));
+        }
+
+        [Test]
+        public void ThenWithoutWhen()
+        {
+            var id = Guid.NewGuid().ToString();
+
+            Emit<RootA>(id, new EventA1());
+
+            Context.Save(id, new EventA2());
+
+            Then(id, new EventA2());
+        }
+
+        [Test]
+        public void ThenWithoutWhenWithDifference()
+        {
+            var id = Guid.NewGuid().ToString();
+
+            Emit<RootA>(id, new EventA1());
+
+            Context.Save(id, new EventA3
+            {
+                Content = "asger"
+            });
+
+            Should.Throw<AssertionException>(() => Then(id, new EventA3
+            {
+                Content = "karin"
+            }));
+        }
+
+        [Test]
+        public void ThenWithoutWhenWithNothingEmitted()
+        {
+            var id = Guid.NewGuid().ToString();
+
+            Emit<RootA>(id, new EventA1());
+
+            Should.Throw<AssertionException>(() => Then(id, new EventA2()));
+        }
+
+        [Test]
+        public void ShallowThenWithoutWhen()
+        {
+            var id = Guid.NewGuid().ToString();
+
+            Emit<RootA>(id, new EventA1());
+
+            Context.Save(id, new EventA2());
+            Context.Save(id, new EventA3());
+
+            Then<EventA2>();
+            Then<EventA3>();
+        }
+
+        public class RootA : AggregateRoot, IEmit<EventA1>, IEmit<EventA2>, IEmit<EventA3>
         {
             public void DoA1()
             {
@@ -288,6 +409,11 @@ Then:
                 Emit(new EventA2());
             }
 
+            public void DoA3()
+            {
+                Emit(new EventA3());
+            }
+
             public void Apply(EventA1 e)
             {
 
@@ -297,17 +423,15 @@ Then:
             {
 
             }
+
+            public void Apply(EventA3 e)
+            {
+                
+            }
         }
 
         public class RootAExtended : RootA
         {
-
-            public void DoA3()
-            {
-                Emit(new EventA1());
-                Emit(new EventA2());
-            }
-
         }
 
         public class EventA1 : DomainEvent<RootA>
@@ -316,7 +440,16 @@ Then:
 
         public class EventA2 : DomainEvent<RootA>
         {
+        }
 
+        public class EventA3 : DomainEvent<RootA>
+        {
+            public string Content { get; set; }
+        }
+
+        public class EventWithNoRoot : DomainEvent
+        {
+            
         }
 
         public class CommandResultingInOneEvent : ExecutableCommand
@@ -344,6 +477,16 @@ Then:
                 var rootA = context.Load<RootA>(Id);
                 rootA.DoA2();
                 rootA.DoA2();
+            }
+        }
+
+        public class CommandResultingInA3 : ExecutableCommand
+        {
+            public string Id { get; set; }
+
+            public override void Execute(ICommandContext context)
+            {
+                context.Load<RootA>(Id).DoA3();
             }
         }
 
