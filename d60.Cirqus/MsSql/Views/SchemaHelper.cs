@@ -284,8 +284,7 @@ namespace d60.Cirqus.MsSql.Views
         public bool Matches(Prop otherProp)
         {
             return ColumnName.Equals(otherProp.ColumnName, StringComparison.InvariantCultureIgnoreCase)
-                   && SqlDbType == otherProp.SqlDbType
-                   && Size == otherProp.Size;
+                   && SqlDbType == otherProp.SqlDbType;
         }
 
         public string ColumnName { get; set; }
