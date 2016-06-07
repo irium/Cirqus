@@ -63,16 +63,16 @@ namespace d60.Cirqus.MsSql.Views
                 .Select(p =>
                 {
                     var propertyInfo = p.Property;
-                    var columnName = p.Attribute != null
-                        ? p.Attribute.ColumnName
-                        : propertyInfo.Name;
-
                     var sqlDbType = MapType(propertyInfo.PropertyType);
+
+                    var columnName = p.Attribute?.ColumnName ?? propertyInfo.Name;
+                    var columnSize = p.Attribute?.Size ?? sqlDbType.Item2;
+                    
                     return new Prop
                     {
                         ColumnName = columnName,
                         SqlDbType = sqlDbType.Item1,
-                        Size = sqlDbType.Item2,
+                        Size = columnSize,
                         PropertyIsNullable = DetermineNullability(propertyInfo),
                         Getter = instance => GetGetter(propertyInfo, instance),
                         Setter = (instance, value) => GetSetter(propertyInfo, instance, value)
@@ -284,7 +284,8 @@ namespace d60.Cirqus.MsSql.Views
         public bool Matches(Prop otherProp)
         {
             return ColumnName.Equals(otherProp.ColumnName, StringComparison.InvariantCultureIgnoreCase)
-                   && SqlDbType == otherProp.SqlDbType;
+                   && SqlDbType == otherProp.SqlDbType
+                   && Size == otherProp.Size;
         }
 
         public string ColumnName { get; set; }
